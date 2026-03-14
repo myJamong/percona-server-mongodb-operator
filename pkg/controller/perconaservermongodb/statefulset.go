@@ -73,6 +73,24 @@ func (r *ReconcilePerconaServerMongoDB) reconcileStatefulSet(ctx context.Context
 		}
 	}
 
+	// Pre-create cloned PVCs before scaling up the StatefulSet.
+	// This applies to all data-bearing components (mongod, nonVoting, hidden) but not arbiters.
+	if ls[naming.LabelKubernetesComponent] != naming.ComponentArbiter {
+		if currentSts != nil && currentSts.Spec.Replicas != nil {
+			cloneSts := sfs.DeepCopy()
+			cloneSts.Spec.Replicas = currentSts.Spec.Replicas
+
+			ready, cloneErr := r.preCreateClonedPVCs(ctx, cr, rs, cloneSts, ls[naming.LabelKubernetesComponent])
+			if cloneErr != nil {
+				return nil, errors.Wrap(cloneErr, "pre-create cloned PVCs")
+			}
+			if !ready {
+				log.Info("Waiting for cloned PVCs to be bound, deferring scale-up", "sts", sfs.Name)
+				sfs.Spec.Replicas = currentSts.Spec.Replicas
+			}
+		}
+	}
+
 	err = r.createOrUpdate(ctx, sfs)
 	if err != nil {
 		return nil, errors.Wrapf(err, "update StatefulSet %s", sfs.Name)

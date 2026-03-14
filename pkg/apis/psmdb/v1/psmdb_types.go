@@ -845,6 +845,7 @@ type ReplsetSpec struct {
 	Arbiter                  Arbiter                      `json:"arbiter,omitempty"`
 	Expose                   ExposeTogglable              `json:"expose,omitempty"`
 	VolumeSpec               *VolumeSpec                  `json:"volumeSpec,omitempty"`
+	VolumeClone              *VolumeCloneSpec             `json:"volumeClone,omitempty"`
 	ReadinessProbe           *corev1.Probe                `json:"readinessProbe,omitempty"`
 	LivenessProbe            *LivenessProbeExtended       `json:"livenessProbe,omitempty"`
 	PodSecurityContext       *corev1.PodSecurityContext   `json:"podSecurityContext,omitempty"`
@@ -960,6 +961,18 @@ func (l LivenessProbeExtended) CommandHas(flag string) bool {
 	}
 
 	return false
+}
+
+// VolumeCloneSpec configures fast provisioning of new replica set members
+// by cloning existing PVCs instead of relying on MongoDB Initial Sync.
+// When enabled, the operator pre-creates PVCs with a dataSource pointing to
+// an existing member's PVC before scaling up the StatefulSet. The CSI driver
+// handles the actual volume cloning (e.g., EBS Volume Clone, GCE PD Clone).
+// The source PVC is automatically selected based on AZ balancing, preferring
+// secondary members over the primary.
+type VolumeCloneSpec struct {
+	// Enabled activates PVC cloning for scale-up operations.
+	Enabled bool `json:"enabled"`
 }
 
 type VolumeSpec struct {
@@ -1694,6 +1707,7 @@ const (
 	AnnotationResyncPBM                = "percona.com/resync-pbm"
 	AnnotationResyncInProgress         = "percona.com/resync-in-progress"
 	AnnotationPVCResizeInProgress      = "percona.com/pvc-resize-in-progress"
+	AnnotationVolumeCloneSource        = "percona.com/volume-clone-source"
 	annotationPreservedRestartedAtBase = "percona.com/preserved-restarted-at"
 )
 
